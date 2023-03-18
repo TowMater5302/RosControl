@@ -19,8 +19,10 @@ bool set(pololu_maestro_ros::set_servo::Request  &req,
     //ZCheck if the command was written to the device
     if (write(fd, command, sizeof(command)) == -1)
     {
-    ROS_INFO("Cannot set servo channel");
-    return false;
+        ROS_INFO("Cannot set servo channel");
+        return false;
+    } else {
+        ROS_INFO("Successfully set servo channel");
     }
 
     // FOR SOME REASON, THIS WORKS BUT DOESN'T ACTUALLY AFFECT ANYTHING.
@@ -35,7 +37,7 @@ int main(int argc, char **argv)
 
     //Serial device (Pololu Maestro)
     // Need to run sudo chmod 0666 /dev/serial/by-id/usb-Pololu_Corporation_Pololu_Mini_Maestro_18-Channel_USB_Servo_Controller_00257934-if00 for some reason.
-    const char * device = "/dev/serial/by-id/usb-Pololu_Corporation_Pololu_Mini_Maestro_18-Channel_USB_Servo_Controller_00257934-if00"; 
+    const char * device = "/dev/ttyACM0"; 
     ROS_INFO(device);
     fd = open(device, O_RDWR | O_NOCTTY);
 
