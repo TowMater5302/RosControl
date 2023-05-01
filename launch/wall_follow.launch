@@ -1,0 +1,15 @@
+<launch>
+    <!-- Include launch file for realsense  -->
+    <!-- <include file="$(find realsense2_camera)/launch/rs_camera.launch" /> -->
+
+    <!-- Launch node for setting servo values -->
+    <!-- <node pkg="pololu_maestro_ros" name="set_servo_server" type="set_servo_server" output="screen"/> -->
+    
+    <!-- Launch wall follow node and set parameters  -->
+    <!-- <group ns="towmater"> -->
+    <rosparam file="$(find pololu_maestro_ros)/config/wall_follow.yaml"/>
+
+    <node pkg="pololu_maestro_ros" name="wall_follow_node" type="wall_follow_node" output="screen"/>
+    <!-- </group> -->
+
+</launch>

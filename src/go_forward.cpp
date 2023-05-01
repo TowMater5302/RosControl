@@ -25,7 +25,11 @@ int main(int argc, char** argv) {
     srv.request.target = atoll(argv[2]);
     client.call(srv);
 
-    usleep(atoll(argv[1]) * MICROSECOND);
+    // Wait for seconds
+    // usleep(atoll(argv[1]) * MICROSECOND);
+
+    // Wait for key press
+    std::cin.get();
 
     // Stopping call
     srv.request.channel = 1;
