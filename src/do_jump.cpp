@@ -8,9 +8,9 @@
 #define RPM = 6400
 #define STOP_RPM = 6000
 
-#define FORWARD_TIME_SECONDS = 1.0
-#define AIRTIME_SECONDS = .2
-#define SLOW_TIME_SECONDS = .75
+#define FORWARD_TIME_SECONDS = 0.5
+#define AIRTIME_SECONDS = 0.2
+#define SLOW_TIME_SECONDS = 0.75
 #define SLOW_TIME_SEGMENTS = 10
 
 int main(int argc, char** argv) {
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
     // Stopping call
     srv.request.channel = 1;
-    srv.request.target = 6000;
+    srv.request.target = STOP_RPM;
     client.call(srv);
 
     return 0;
