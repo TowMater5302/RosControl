@@ -16,3 +16,5 @@ alpha: 70
 normal_speed: 6500
 # turn_speed - the speed with which robot will drive while turning at sharp angles
 turn_speed: 6150
+# enable_stop_sign - whether we should look for stop signs to stop at
+enable_stop_sign: false

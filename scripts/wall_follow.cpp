@@ -27,9 +27,12 @@ class WallFollow {
         double Kp; // proportional gain
         double Ki; // integral gain
         double Kd; // derivative gain
+        bool enable_stop_sign; // whether to look for stop signs
+        cv::CascadeClassifier stop_classifier;
 
         cv_bridge::CvImagePtr cv_ptr; // depth image
         cv::Mat depth_array; // depth image converted to a cv::Mat
+        cv::Mat color_array; // color image converted to a cv::Mat
         ros::Subscriber sub;
 
     public:
@@ -38,6 +41,7 @@ class WallFollow {
         void run();
         void pidControl(float left_avg, float right_avg);
         void thresholdControl(float left_avg, float right_avg);
+        bool stopSignDetect();
 };
 
 WallFollow::WallFollow(ros::NodeHandle* nh) {
@@ -70,7 +74,28 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     nh->getParam("pid/kd", this->Kd);
     ROS_INFO("Set Kd: %f", this->Kd);
 
+    nh->getParam("enable_stop_sign", this->enable_stop_sign);
+    ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign)
+
     this->sub = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
+    if (this->enable_stop_sign){
+        this->sub = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
+
+        if (!this->stop_classifier.load("data/cascade.xml"))
+        {
+            ROS_ERROR("Error loading cascade classifier XML file.");
+        }
+    }
+}
+
+void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
+    // Convert the image to a cv::Mat
+    try {
+        this->color_array = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::BGR8)->image;
+    }
+    catch (cv_bridge::Exception& e) {
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+    }
 }
 
 void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
@@ -93,11 +118,65 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     run();
 }
 
+bool WallFollow::stopSignDetect() {
+    cv::Mat frame_gray;
+    cvtColor(this->color_array, frame_gray, COLOR_BGR2GRAY);
+
+    std::vector<Rect> stop_signs;
+    this->stop_classifier.detectMultiScale( frame_gray, stop_signs );
+
+    // Define the lower and upper bounds of the red color range
+    Scalar lower_red(0, 0, 100); // BGR format
+    Scalar upper_red(50, 50, 255); // BGR format
+    Scalar red_color(0, 0, 255);
+    Scalar black_color(255, 255, 255);
+    
+    for (Rect r : stop_signs) {
+        
+
+        cv::Mat section = img(roi);
+
+        // Apply the color mask to the ROI
+        cv::Mat mask;
+        inRange(section, lower_red, upper_red, mask);
+        cv::Mat detected_output;
+        bitwise_and(section, section, detected_output, mask);
+
+        // Convert the masked image to grayscale
+        cv::Mat mask_gray;
+        cvtColor(detected_output, mask_gray, COLOR_BGR2GRAY);
+
+        int total_pixels = mask_gray.rows * mask_gray.cols;
+        int red_pixels = countNonZero(mask_gray);
+        double percentage_red = static_cast<double>(red_pixels) / total_pixels;
+
+        if (percentage_red > .1){
+            // Draw the rectangle on the image
+            rectangle(this->color_array, r, color, 2);
+        } else {
+            rectangle(this->color_array, r, black_color, 2);
+        }
+    }
+
+    imshow( "RealSense with stop signs", this->color_array);
+
+    return stop_signs.length() > 0;
+}
+
 void WallFollow::run() {
     if (this->depth_array.empty()) {
         ROS_INFO("run: the depth array is empty");
         return;
     }
+
+    if (this->enable_stop_sign && this->stopSignDetect()){
+        ROS_INFO("stop sign found!")
+        return;
+    } else if(this->enable_stop_sign) {
+        ROS_INFO("no stop sign")
+        return;
+    }
+
     // get average depth at the center of image
     static int center_h = this->depth_array.cols / 2;
     static int center_v = this->depth_array.rows / 2;
