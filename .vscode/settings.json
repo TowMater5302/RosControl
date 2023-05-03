@@ -12,5 +12,10 @@
         "ostream": "cpp",
         "sstream": "cpp",
         "streambuf": "cpp"
-    }
+    },
+    "python.analysis.extraPaths": [
+        "/home/cairo/Desktop/Towmator/catkin_ws/devel/lib/python2.7/dist-packages",
+        "/home/cairo/catkin_ws/devel/lib/python2.7/dist-packages",
+        "/opt/ros/melodic/lib/python2.7/dist-packages"
+    ]
 }

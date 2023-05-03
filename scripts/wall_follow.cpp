@@ -38,6 +38,7 @@ class WallFollow {
     public:
         WallFollow(ros::NodeHandle* nh);
         void depthCallback(const sensor_msgs::Image::ConstPtr& data);
+        void colorCallback(const sensor_msgs::Image::ConstPtr& data);
         void run();
         void pidControl(float left_avg, float right_avg);
         void thresholdControl(float left_avg, float right_avg);
@@ -75,7 +76,7 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     ROS_INFO("Set Kd: %f", this->Kd);
 
     nh->getParam("enable_stop_sign", this->enable_stop_sign);
-    ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign)
+    ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign);
 
     this->sub = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
     if (this->enable_stop_sign){
@@ -120,47 +121,45 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
 
 bool WallFollow::stopSignDetect() {
     cv::Mat frame_gray;
-    cvtColor(this->color_array, frame_gray, COLOR_BGR2GRAY);
+    cvtColor(this->color_array, frame_gray, cv::COLOR_BGR2GRAY);
 
-    std::vector<Rect> stop_signs;
+    std::vector<cv::Rect> stop_signs;
     this->stop_classifier.detectMultiScale( frame_gray, stop_signs );
 
     // Define the lower and upper bounds of the red color range
-    Scalar lower_red(0, 0, 100); // BGR format
-    Scalar upper_red(50, 50, 255); // BGR format
-    Scalar red_color(0, 0, 255);
-    Scalar black_color(255, 255, 255);
+    cv::Scalar lower_red(0, 0, 100); // BGR format
+    cv::Scalar upper_red(50, 50, 255); // BGR format
+    cv::Scalar red_color(0, 0, 255);
+    cv::Scalar black_color(255, 255, 255);
     
-    for (Rect r : stop_signs) {
-        
-
-        cv::Mat section = img(roi);
+    for (cv::Rect r : stop_signs) {
+        cv::Mat section = this->color_array(r);
 
         // Apply the color mask to the ROI
         cv::Mat mask;
-        inRange(section, lower_red, upper_red, mask);
+        cv::inRange(section, lower_red, upper_red, mask);
         cv::Mat detected_output;
-        bitwise_and(section, section, detected_output, mask);
+        cv::bitwise_and(section, section, detected_output, mask);
 
         // Convert the masked image to grayscale
         cv::Mat mask_gray;
-        cvtColor(detected_output, mask_gray, COLOR_BGR2GRAY);
+        cv::cvtColor(detected_output, mask_gray, cv::COLOR_BGR2GRAY);
 
         int total_pixels = mask_gray.rows * mask_gray.cols;
-        int red_pixels = countNonZero(mask_gray);
+        int red_pixels = cv::countNonZero(mask_gray);
         double percentage_red = static_cast<double>(red_pixels) / total_pixels;
 
         if (percentage_red > .1){
             // Draw the rectangle on the image
-            rectangle(this->color_array, r, color, 2);
+            cv::rectangle(this->color_array, r, red_color, 2);
         } else {
-            rectangle(this->color_array, r, black_color, 2);
+            cv::rectangle(this->color_array, r, black_color, 2);
         }
     }
 
-    imshow( "RealSense with stop signs", this->color_array);
+    cv::imshow( "RealSense with stop signs", this->color_array);
 
-    return stop_signs.length() > 0;
+    return stop_signs.size() > 0;
 }
 
 void WallFollow::run() {
@@ -170,10 +169,10 @@ void WallFollow::run() {
     }
 
     if (this->enable_stop_sign && this->stopSignDetect()){
-        ROS_INFO("stop sign found!")
+        ROS_INFO("stop sign found!");
         return;
     } else if(this->enable_stop_sign) {
-        ROS_INFO("no stop sign")
+        ROS_INFO("no stop sign");
         return;
     }
 

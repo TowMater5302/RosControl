@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   cv_bridge
 )
+find_package(OpenCV REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -166,6 +167,7 @@ target_link_libraries(go_forward ${catkin_LIBRARIES})
 target_link_libraries(do_jump ${catkin_LIBRARIES})
 target_link_libraries(wall_follow_node
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
 )
 
 #############

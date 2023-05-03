@@ -5,13 +5,13 @@
 #define MICROSECOND 1000000
 
 // JUMP CONFIG
-#define RPM = 6400
-#define STOP_RPM = 6000
+const int RPM = 6400;
+const int STOP_RPM = 6000;
 
-#define FORWARD_TIME_SECONDS = 0.5
-#define AIRTIME_SECONDS = 0.2
-#define SLOW_TIME_SECONDS = 0.75
-#define SLOW_TIME_SEGMENTS = 10
+const double FORWARD_TIME_SECONDS = 0.5;
+const double AIRTIME_SECONDS = 0.2;
+const double SLOW_TIME_SECONDS = 0.75;
+const int SLOW_TIME_SEGMENTS = 10;
 
 int main(int argc, char** argv) {
 
