@@ -1,7 +1,9 @@
 #include <ros/ros.h>
+#include <tf/transform_datatypes.h>
 #include <signal.h>
 #include <pololu_maestro_ros/set_servo.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/Imu.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 
@@ -14,6 +16,11 @@ void maestroControl(float left_avg, float right_avg); // Control the pololu maes
 void steer(int target); // Control the steer servo
 void drive(int target); // Control the drive motor esc
 void sigintHandler(int sig);
+inline double getAbsoluteDiff2Angles(const double x, const double y)
+{
+    // c can be PI (for radians) or 180.0 (for degrees);
+    return M_PI - fabs(fmod(fabs(x - y), 2*M_PI) - M_PI);
+}
 
 class WallFollow {
     private:
@@ -29,19 +36,25 @@ class WallFollow {
         double Kd; // derivative gain
         float slow_threshold;
         double turn_exit_speed;
+        double turn_yaw_threshold;
         double turn_timer;
         double slow_timer;
         double drive_speed;
+        double yaw;
+        bool is_turning;
+        double yaw_before_turn;
 
         cv_bridge::CvImagePtr cv_ptr; // depth image
         cv::Mat depth_array; // depth image converted to a cv::Mat
-        ros::Subscriber sub;
+        ros::Subscriber sub1;
+        ros::Subscriber sub2;
         ros::NodeHandle *nh;
         ros::Timer timer;
 
     public:
         WallFollow(ros::NodeHandle* nh);
         void depthCallback(const sensor_msgs::Image::ConstPtr& data);
+        void imuCallback(const sensor_msgs::Imu::ConstPtr& data);
         void run();
         void pidControl(float left_avg, float right_avg);
         void thresholdControl(float left_avg, float right_avg);
@@ -51,6 +64,8 @@ class WallFollow {
 WallFollow::WallFollow(ros::NodeHandle* nh) {
     // set private variables using rosparam
     this->nh = nh;
+    this->is_turning = false;
+
     ROS_INFO("Inside the constructor");
     nh->getParam("turn_direction", this->turn_direction);
     ROS_INFO("Set turn direction: %s", this->turn_direction.c_str());
@@ -63,6 +78,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
     nh->getParam("slow_threshold", this->slow_threshold);
     ROS_INFO("Set slow threshold: %f", this->slow_threshold);
+
+    nh->getParam("turn_yaw_threshold", this->turn_yaw_threshold);
+    ROS_INFO("Set turn yaw threshold: %f", this->turn_yaw_threshold);
 
     nh->getParam("alpha", this->alpha);
     ROS_INFO("Set alpha: %f", this->alpha);
@@ -93,7 +111,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
     this->drive_speed = this->normal_speed;
     // this->timer = this->nh->createTimer(ros::Duration(this->slow_timer), &WallFollow::timerCallback, this);
-    this->sub = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
+    this->sub1 = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
+    // subscribe to imu data
+    this->sub2 = nh->subscribe("/imu/data", 1, &WallFollow::imuCallback, this);
 }
 
 void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
@@ -114,6 +134,13 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     cv::medianBlur(this->depth_array, this->depth_array, 5);
     // call run() to process the depth image
     run();
+}
+
+void WallFollow::imuCallback(const sensor_msgs::Imu::ConstPtr& data) {
+    // TODO - implement this
+    // get the current yaw
+    this->yaw = tf::getYaw(data->orientation);
+    ROS_INFO("Current yaw: %f", this->yaw);
 }
 
 void WallFollow::run() {
@@ -140,29 +167,44 @@ void WallFollow::run() {
     if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
         // slow down
         drive(this->turn_speed);
-        // if approaching turning threshold
-        if (center_avg < this->turn_threshold) {
-            // if turn direction is left
-            if (this->turn_direction == "left") {
-                ROS_INFO("Corner: turn value = %d", 4000);
-                steer(4000);
+        // set the is_turning flag to true and save the current yaw angle
+        if(!this->is_turning) {
+            this->is_turning = true;
+            this->yaw_before_turn = this->yaw;
+        }
+    }
+    // if turning
+    if (is_turning && center_avg < this->turn_threshold) {
+        // if turn direction is left
+        if (this->turn_direction == "left") {
+            // turn left until difference between yaw and target angle is less than threshold
+            steer(4000);
+            // check if the turn is complete
+            if (getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn) > this->turn_yaw_threshold) {
+                this->is_turning = false;
             }
-            // else turn direction is right
-            else {
-                ROS_INFO("Corner: turn value = %d", 8000);
-                steer(8000);
+
+        }
+        // else turn direction is right
+        else {
+            steer(8000);
+            // check if the turn is complete
+            if (getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn) > this->turn_yaw_threshold) {
+                this->is_turning = false;
             }
-            // turn for duration and start at slower speed
-            ros::Duration(this->turn_timer).sleep();
+        }
+        // turn for duration and start at slower speed
+        ros::Duration(this->turn_timer).sleep();
+        if(!this->is_turning) {
             this->drive_speed = this->turn_exit_speed;
-            // call timer callback
-            // timer.start();
+            drive(this->drive_speed);
         }
         return;
+        // call timer callback
+        // timer.start();
     }
-    // else
     // drive at normal speed 
-    drive(this->drive_speed);
+    // drive(this->drive_speed);
     // call pidControl or thresholdControl
     if(this->control_type == "pid") {
         pidControl(left_avg, right_avg);
