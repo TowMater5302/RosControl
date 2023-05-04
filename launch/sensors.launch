@@ -1,0 +1,9 @@
+<launch>
+    <!-- Start realsense camera and imu -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch"/>
+    <include file="$(find phidgets_spatial)/launch/spatial.launch" />
+    
+    <!-- Static transforms -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 1 /map /odom" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="imu_link_to_camera_link" args="0 0 0 0 0 0 1 /imu_link /camera_link" />
+</launch>

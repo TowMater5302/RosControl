@@ -6,13 +6,30 @@ pid: {
 }
 # control type
 control_type: 'pid'
+
 # turn direction - 'left' or 'right' when the robot is approaching a turn
 turn_direction: 'left'
+
 # threshold in meteres when the robot starts turning
 turn_threshold: 2.5
+
 # alpha - the FOV in degree within which the robot will look for a wall
 alpha: 70
+
 # normal_speed - the speed with which robot will normally drive
-normal_speed: 6500
-# turn_speed - the speed with which robot will drive while turning at sharp angles
+normal_speed: 6400
+
+# turn_speed - the speed with which robot will drive while turning at corner
 turn_speed: 6150
+
+# the speed for which it goes immediately after the turn
+turn_exit_speed: 6400
+
+# slow_threshold -  threshold in meters when the robot starts slowing down
+slow_threshold: 2.5
+
+# the duration for which the robot takes the turn
+turn_timer: 0.0
+
+# the duration for which the robot continues moving at the slower speed after taking the turn
+slow_timer: 0.0
