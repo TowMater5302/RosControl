@@ -33,3 +33,5 @@ turn_timer: 0.0
 
 # the duration for which the robot continues moving at the slower speed after taking the turn
 slow_timer: 0.0
+
+turn_yaw_threshold: 1.717
