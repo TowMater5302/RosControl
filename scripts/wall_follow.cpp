@@ -47,6 +47,7 @@ class WallFollow {
         double yaw;
         std::string drive_mode;
         double yaw_before_turn;
+        double inlet_threshold;
 
         int stay_in_pid_ct = 10;
 
@@ -97,6 +98,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
     nh->getParam("alpha", this->alpha);
     ROS_INFO("Set alpha: %f", this->alpha);
+
+    nh->getParam("inlet_threshold", this->inlet_threshold);
+    ROS_INFO("Set inlet threshold: %f", this->inlet_threshold);
 
     nh->getParam("normal_speed", this->normal_speed);
     ROS_INFO("Set normal speed: %d", this->normal_speed);
@@ -257,6 +261,11 @@ void WallFollow::handle_pid(){
     float center_avg = cv::mean(center_wall)[0];
     float left_avg = cv::mean(left_wall)[0];
     float right_avg = cv::mean(right_wall)[0];
+
+    // To avoid inlets in walls, clip the right and left averages if they are too far away
+    right_avg = std::min(this->inlet_threshold, right_avg);
+    left_avg = std::min(this->inlet_threshold, left_avg);
+
 
     ROS_INFO("[PID] Center wall: %f", center_avg);
     

@@ -39,3 +39,5 @@ turn_timer: 0.0
 slow_timer: 0.0
 
 turn_yaw_threshold: .3
+
+inlet_threshold: 3.2
