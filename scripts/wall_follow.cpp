@@ -37,10 +37,7 @@ class WallFollow {
         bool enable_stop_sign; // whether to look for stop signs
         cv::CascadeClassifier stop_classifier;
 
-        cv_bridge::CvImagePtr cv_ptr; // depth image
-        cv::Mat depth_array; // depth image converted to a cv::Mat
-        cv::Mat color_array; // color image converted to a cv::Mat
-        ros::Subscriber sub;
+        
         float slow_threshold;
         double turn_exit_speed;
         double turn_yaw_threshold;
@@ -48,13 +45,17 @@ class WallFollow {
         double slow_timer;
         double drive_speed;
         double yaw;
-        bool is_turning;
+        std::string drive_mode;
         double yaw_before_turn;
+
+        int stay_in_pid_ct = 10;
 
         cv_bridge::CvImagePtr cv_ptr; // depth image
         cv::Mat depth_array; // depth image converted to a cv::Mat
+        cv::Mat color_array; // color image converted to a cv::Mat
         ros::Subscriber sub1;
         ros::Subscriber sub2;
+        ros::Subscriber sub3;
         ros::NodeHandle *nh;
         ros::Timer timer;
 
@@ -62,21 +63,21 @@ class WallFollow {
         WallFollow(ros::NodeHandle* nh);
         void depthCallback(const sensor_msgs::Image::ConstPtr& data);
         void colorCallback(const sensor_msgs::Image::ConstPtr& data);
-        void run();
-        void pidControl(float left_avg, float right_avg);
-        void thresholdControl(float left_avg, float right_avg);
-        bool stopSignDetect();
         void imuCallback(const sensor_msgs::Imu::ConstPtr& data);
         void run();
+        void handle_pid();
+        void handle_slow_down();
+        void handle_turn();
         void pidControl(float left_avg, float right_avg);
         void thresholdControl(float left_avg, float right_avg);
         void timerCallback(const ros::TimerEvent& event);
+        bool stopSignDetect();
 };
 
 WallFollow::WallFollow(ros::NodeHandle* nh) {
     // set private variables using rosparam
     this->nh = nh;
-    this->is_turning = false;
+    this->drive_mode = "PID";
 
     ROS_INFO("Inside the constructor");
     nh->getParam("turn_direction", this->turn_direction);
@@ -130,15 +131,15 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     nh->getParam("enable_stop_sign", this->enable_stop_sign);
     ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign);
 
-    this->sub = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
     if (this->enable_stop_sign){
-        this->sub = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
+        this->sub3 = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
 
         if (!this->stop_classifier.load("data/cascade.xml"))
         {
             ROS_ERROR("Error loading cascade classifier XML file.");
         }
     }
+    drive(this->drive_speed);
 }
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
@@ -215,10 +216,7 @@ bool WallFollow::stopSignDetect() {
 }
 
 void WallFollow::imuCallback(const sensor_msgs::Imu::ConstPtr& data) {
-    // TODO - implement this
-    // get the current yaw
     this->yaw = tf::getYaw(data->orientation);
-    ROS_INFO("Current yaw: %f", this->yaw);
 }
 
 void WallFollow::run() {
@@ -235,9 +233,20 @@ void WallFollow::run() {
         return;
     }
 
+    if (this->drive_mode == "PID"){
+        this->handle_pid();
+    }
+    else if (this->drive_mode == "SLOW_DOWN"){
+        this->handle_slow_down();
+    } else if (this->drive_mode == "TURN"){
+        this->handle_turn();
+    }
+}
+
+void WallFollow::handle_pid(){
     // get average depth at the center of image
     static int center_h = this->depth_array.cols / 2;
-    static int center_v = this->depth_array.rows / 2;
+    static int center_v = this->depth_array.rows * (2.0/3.0);
     // static float d = center_h * std::tan(this->alpha * M_PI / 180.0) / std::tan(FOV_H * M_PI / 180.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
@@ -249,56 +258,71 @@ void WallFollow::run() {
     float left_avg = cv::mean(left_wall)[0];
     float right_avg = cv::mean(right_wall)[0];
 
-    ROS_INFO("Center wall: %f", center_avg);
-    // if wall is approaching at the front, 
-    if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
-        // slow down
-        drive(this->turn_speed);
-        // set the is_turning flag to true and save the current yaw angle
-        if(!this->is_turning) {
-            this->is_turning = true;
-            this->yaw_before_turn = this->yaw;
-        }
-    }
-    // if turning
-    if (is_turning && center_avg < this->turn_threshold) {
-        // if turn direction is left
-        if (this->turn_direction == "left") {
-            // turn left until difference between yaw and target angle is less than threshold
-            steer(4000);
-            // check if the turn is complete
-            if (getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn) > this->turn_yaw_threshold) {
-                this->is_turning = false;
-            }
+    ROS_INFO("[PID] Center wall: %f", center_avg);
+    
 
+    // We have been in pid mode long enough and can now look to see if we should exit
+    if (this->stay_in_pid_ct == 0){
+        // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
+        if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
+            ROS_INFO("(Mode Change) PID -> SLOW_DOWN");
+            drive(this->turn_speed);
+            this->drive_mode = "SLOW_DOWN";
         }
-        // else turn direction is right
-        else {
-            steer(8000);
-            // check if the turn is complete
-            if (getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn) > this->turn_yaw_threshold) {
-                this->is_turning = false;
-            }
-        }
-        // turn for duration and start at slower speed
-        ros::Duration(this->turn_timer).sleep();
-        if(!this->is_turning) {
-            this->drive_speed = this->turn_exit_speed;
-            drive(this->drive_speed);
-        }
-        return;
-        // call timer callback
-        // timer.start();
     }
-    // drive at normal speed 
-    // drive(this->drive_speed);
-    // call pidControl or thresholdControl
+    else{
+        this->stay_in_pid_ct --;
+    }
+
+    // handle control to the car in order to wall follow
     if(this->control_type == "pid") {
         pidControl(left_avg, right_avg);
     } else {
         thresholdControl(left_avg, right_avg);
     }
 }
+
+
+// detect when to start to turn
+void WallFollow::handle_slow_down(){
+    // get average depth at the center of image
+    static int center_h = this->depth_array.cols / 2;
+    static int center_v = this->depth_array.rows * (2.0/3.0);
+    static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
+
+    cv::Mat center_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h - d, center_h + d));
+    float center_avg = cv::mean(center_wall)[0];
+
+    ROS_INFO("[SLOW] Center wall: %f", center_avg);
+
+    if (center_avg < this->turn_threshold) {
+        this->drive_mode = "TURN";
+        ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+        this->yaw_before_turn = this->yaw;
+        // if turn direction is left
+        if (this->turn_direction == "left") {
+            steer(4000);
+        }
+        else {
+            steer(8000);
+        }
+    }
+    return;
+}
+
+void WallFollow::handle_turn(){
+    double diff = getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn);
+    ROS_INFO("[TURN] (yaw prev: %f, yaw cur: %f, diff: %f)", this->yaw_before_turn, this->yaw, diff);
+
+    if (diff > this->turn_yaw_threshold) {
+        ROS_INFO("(Mode Change) TURN -> PID");
+        this->drive_mode = "PID";
+        this->drive_speed = this->turn_exit_speed;
+        this->stay_in_pid_ct = 10;
+        drive(this->drive_speed);
+    }
+}
+
 
 void WallFollow::timerCallback(const ros::TimerEvent& event) {
     ROS_INFO("Inside the timer callback");
@@ -327,7 +351,7 @@ void WallFollow::pidControl(float left_avg, float right_avg) {
     double control = Pout + Iout + Dout + 1500;
     prev_error = error;
 
-    ROS_INFO("WallFollow: turn value = %f", control);
+    ROS_INFO("[PID] WallFollow: turn value = %f", control);
     steer(4*static_cast<int>(control));
 }
 
