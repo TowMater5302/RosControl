@@ -9,7 +9,7 @@ pid: {
 control_type: 'pid'
 
 # turn direction - 'left' or 'right' when the robot is approaching a turn
-turn_direction: 'left'
+turn_direction: 'right'
 
 # threshold in meteres when the robot starts turning
 turn_threshold: 3.2
