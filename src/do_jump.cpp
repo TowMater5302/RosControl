@@ -186,6 +186,7 @@ class JumpNode: ros::NodeHandle
         pololu_maestro_ros::set_servo srv;
 
         // set speed to initial speed for jump
+        ROS_INFO("Set initial speed");
         srv.request.channel = 1;
         srv.request.target = rpm;
         m_client.call(srv);
@@ -194,6 +195,7 @@ class JumpNode: ros::NodeHandle
         usleep(air_time / 2.0 * MICROSECOND);
 
         // stop
+        ROS_INFO("Stop motors");
         srv.request.channel = 1;
         srv.request.target = m_stop_speed;
         m_client.call(srv);
@@ -201,6 +203,7 @@ class JumpNode: ros::NodeHandle
         usleep(air_time / 2.0 * MICROSECOND);
 
         // slow
+        ROS_INFO("Go slow for a bit...");
         srv.request.channel = 1;
         srv.request.target = m_slow_speed;
         m_client.call(srv);
@@ -208,9 +211,12 @@ class JumpNode: ros::NodeHandle
         usleep(m_slow_time * MICROSECOND);
 
         // stop
+        ROS_INFO("Stop.");
         srv.request.channel = 1;
         srv.request.target = m_stop_speed;
         m_client.call(srv);
+
+        ROS_INFO("Done.");
     }
 };
 
@@ -222,7 +228,16 @@ int main(int argc, char** argv)
 
     //create node 
     auto jump_node = JumpNode();
-    jump_node.doJump();
+
+    // connect to servo for motor control
+    ros::ServiceClient client = jump_node.serviceClient<pololu_maestro_ros::set_servo>("set_servo");
+    
+    pololu_maestro_ros::set_servo srv;
+    srv.request.channel = 1;
+    srv.request.target = 6400;
+    client.call(srv);
+
+    //jump_node.doJump();
 
     return 0;
 }

@@ -4,6 +4,7 @@
 #include <pololu_maestro_ros/set_servo.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
+#include <std_msgs/Int32.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 
@@ -53,6 +54,9 @@ class WallFollow {
         std::string drive_mode;
         double yaw_before_turn;
         float inlet_threshold;
+        float ir_dist;
+        float ir_threshold;
+        float ir_mix;
 
         int stay_in_pid_ct = 10;
 
@@ -62,6 +66,7 @@ class WallFollow {
         ros::Subscriber sub1;
         ros::Subscriber sub2;
         ros::Subscriber sub3;
+        ros::Subscriber sub4;
         ros::NodeHandle *nh;
         ros::Timer timer;
 
@@ -70,6 +75,7 @@ class WallFollow {
         void depthCallback(const sensor_msgs::Image::ConstPtr& data);
         void colorCallback(const sensor_msgs::Image::ConstPtr& data);
         void imuCallback(const sensor_msgs::Imu::ConstPtr& data);
+        void irCallback(const std_msgs::Int32::ConstPtr& data);
         void run();
         void handle_pid();
         void handle_slow_down();
@@ -140,11 +146,20 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     nh->getParam("pid/kd", this->Kd);
     ROS_INFO("Set Kd: %f", this->Kd);
 
+    nh->getParam("ir_threshold", this->ir_threshold);
+    ROS_INFO("Set ir threshold: %f", this->ir_threshold);
+
+    nh->getParam("ir_mix", this->ir_mix);
+    ROS_INFO("Set ir mix: %f", this->ir_mix);
+
     this->drive_speed = this->normal_speed;
     // this->timer = this->nh->createTimer(ros::Duration(this->slow_timer), &WallFollow::timerCallback, this);
     this->sub1 = nh->subscribe("/camera/depth/image_rect_raw", 1, &WallFollow::depthCallback, this);
     // subscribe to imu data
     this->sub2 = nh->subscribe("/imu/data", 1, &WallFollow::imuCallback, this);
+
+    // subscribe to ir sensor data
+    this->sub4 = nh->subscribe("/sharp/distance", 1, &WallFollow::irCallback, this);
 
     nh->getParam("enable_stop_sign", this->enable_stop_sign);
     ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign);
@@ -158,6 +173,18 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
         }
     }
     drive(this->drive_speed);
+}
+
+void WallFollow::irCallback(const std_msgs::Int32::ConstPtr& data){
+    // ROS_INFO("The IR Callback %d", data->data);
+    float volt = (data->data / 692.0) * 5.0;
+    // ROS_INFO("The IR Callback volt %f", volt);
+    this->ir_dist = (1.0 / ((volt*1000 - 1125) / 137500.0)) / 100.0;
+    if(volt < 1.5){
+        this->ir_dist = 5;
+    }
+    // ROS_INFO("The IR Callback dist %f", this->ir_dist);
+    run();
 }
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
@@ -186,8 +213,6 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     // interpolate the depth data to fill in the missing values
     // TODO - this is a hack, need to find a better way to interpolate
     cv::medianBlur(this->depth_array, this->depth_array, 5);
-    // call run() to process the depth image
-    run();
 }
 
 std::string WallFollow::stopSignDetect() {
@@ -268,7 +293,7 @@ void WallFollow::handle_pid(){
     // static float d = center_h * std::tan(this->alpha * M_PI / 180.0) / std::tan(FOV_H * M_PI / 180.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(50, 150), cv::Range(center_h - d, center_h + d));
     cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
     cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
 
@@ -280,12 +305,15 @@ void WallFollow::handle_pid(){
     right_avg = std::min(this->inlet_threshold, right_avg);
     left_avg = std::min(this->inlet_threshold, left_avg);
 
-    ROS_INFO("[%s] Center wall: %f", this->drive_mode.c_str(), center_avg);
+    ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
 
     // We have been in pid mode long enough and can now look to see if we should exit
     if (this->stay_in_pid_ct == 0){
+
+        float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
+        float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->slow_threshold;
         // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
-        if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
+        if (weighted_distance < weighted_threshold) {
             ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
             drive(this->turn_speed);
             this->drive_mode = "SLOW_DOWN"; 
@@ -329,7 +357,7 @@ void WallFollow::handle_slow_down(){
     static int center_v = this->depth_array.rows * (2.0/3.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(50, 150), cv::Range(center_h - d, center_h + d));
     cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
     cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
 
@@ -341,7 +369,7 @@ void WallFollow::handle_slow_down(){
     right_avg = std::min(this->inlet_threshold, right_avg);
     left_avg = std::min(this->inlet_threshold, left_avg);
 
-    ROS_INFO("[SLOW] Center wall: %f", center_avg);
+    ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
 
     // Decide if we should stop
     if (this->enable_stop_sign){
@@ -364,7 +392,10 @@ void WallFollow::handle_slow_down(){
         thresholdControl(left_avg, right_avg);
     }
 
-    if (center_avg < this->turn_threshold) {
+    float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
+    float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->turn_threshold;
+    // Decide if we should leave "SLOW_DOWN" mode and go to "TURN" mode
+    if (weighted_distance < weighted_threshold) {
         this->drive_mode = "TURN";
         ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
         this->yaw_before_turn = this->yaw;

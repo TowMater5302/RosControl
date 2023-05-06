@@ -9,7 +9,7 @@ pid: {
 control_type: 'pid'
 
 # turn direction - 'left' or 'right' when the robot is approaching a turn
-turn_direction: 'right'
+turn_direction: 'left'
 
 # turn angle - how much to turn wheels during turn. 
 # 0 => don't turn at all; 2000 => turn the max angle
@@ -17,18 +17,18 @@ turn_direction: 'right'
 turn_angle: 2000
 
 # threshold in meteres when the robot starts turning
-turn_threshold: 3.7
+turn_threshold: 4.1
 
 # alpha - the FOV in degree within which the robot will look for a wall
-alpha: 50
+alpha: 60
 
 # normal_speed - the speed with which robot will normally drive (6400 original)
 #(6400 for racing)
 #(6250 for stop detection)
-normal_speed: 6250
+normal_speed: 6300
 
 # turn_speed - the speed with which robot will drive while turning at corner
-turn_speed: 6050
+turn_speed: 5500
 
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: false
@@ -36,10 +36,10 @@ enable_stop_sign: false
 # the speed for which it goes immediately after the turn 
 #(6400 for racing)
 #(6250 for stop detection)
-turn_exit_speed: 6250
+turn_exit_speed: 6300
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
-slow_threshold: 4.7
+slow_threshold: 4.5
 
 # the duration for which the robot takes the turn
 turn_timer: 0.0
@@ -55,3 +55,8 @@ inlet_threshold: 2.0
 stop_sign_size_to_stop: 15000.0
 
 stop_sign_seconds_stopped: 3
+
+ir_threshold: 4.5
+
+# 1.0 if we want to only consider ir depth for turn detection, 0.0 if we only want to use realsense, 0.5 if equal mix.
+ir_mix: 0

@@ -2,6 +2,7 @@
     <!-- Start realsense and phidgets imu -->
     <include file="$(find realsense2_camera)/launch/rs_camera.launch"/>
     <include file="$(find phidgets_spatial)/launch/spatial.launch"/>
+    <node pkg="pololu_maestro_ros" name="read_ir" type="read_servo_pub"/>
 
     <!-- Transforms -->
     <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 1 /map /odom" />
