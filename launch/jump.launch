@@ -1,0 +1,9 @@
+<launch>
+ 
+    <!-- Load param file -->
+    <rosparam file="$(find pololu_maestro_ros)/config/jump.yaml"/>
+
+    <!-- Start Jump Node -->
+    <node pkg="pololu_maestro_ros" name="do_jump_node" type="do_jump" output="screen"/>
+    
+</launch>
