@@ -17,7 +17,9 @@ turn_threshold: 3.7
 # alpha - the FOV in degree within which the robot will look for a wall
 alpha: 60
 
-# normal_speed - the speed with which robot will normally drive
+# normal_speed - the speed with which robot will normally drive (6400 original)
+#(6400 for racing)
+#(6250 for stop detection)
 normal_speed: 6400
 
 # turn_speed - the speed with which robot will drive while turning at corner
@@ -26,7 +28,9 @@ turn_speed: 6150
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: true
 
-# the speed for which it goes immediately after the turn
+# the speed for which it goes immediately after the turn 
+#(6400 for racing)
+#(6250 for stop detection)
 turn_exit_speed: 6400
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
@@ -41,3 +45,8 @@ slow_timer: 0.0
 turn_yaw_threshold: .3
 
 inlet_threshold: 2.0
+
+# when a stop sign blob is this big, we actually stop.
+stop_sign_size_to_stop: 15000.0
+
+stop_sign_seconds_stopped: 3
