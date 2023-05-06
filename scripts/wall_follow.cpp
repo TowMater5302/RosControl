@@ -47,7 +47,7 @@ class WallFollow {
         double yaw;
         std::string drive_mode;
         double yaw_before_turn;
-        double inlet_threshold;
+        float inlet_threshold;
 
         int stay_in_pid_ct = 10;
 
@@ -138,7 +138,7 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     if (this->enable_stop_sign){
         this->sub3 = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
 
-        if (!this->stop_classifier.load("data/cascade.xml"))
+        if (!this->stop_classifier.load("/home/odroid/Desktop/towmater_ws/src/RosControl/data/cascade.xml"))
         {
             ROS_ERROR("Error loading cascade classifier XML file.");
         }
@@ -177,6 +177,11 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
 }
 
 bool WallFollow::stopSignDetect() {
+    
+    if (this->color_array.empty()){
+        return false;
+    }
+
     cv::Mat frame_gray;
     cvtColor(this->color_array, frame_gray, cv::COLOR_BGR2GRAY);
 
@@ -277,6 +282,11 @@ void WallFollow::handle_pid(){
             ROS_INFO("(Mode Change) PID -> SLOW_DOWN");
             drive(this->turn_speed);
             this->drive_mode = "SLOW_DOWN";
+            // if(this->turn_direction == "left") {
+            //     steer(4800);
+            // } else {
+            //     steer(7200);
+            // }
         }
     }
     else{
