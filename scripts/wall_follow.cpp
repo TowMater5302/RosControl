@@ -263,7 +263,7 @@ void WallFollow::handle_pid(){
     // static float d = center_h * std::tan(this->alpha * M_PI / 180.0) / std::tan(FOV_H * M_PI / 180.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
     cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
     cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
 
@@ -325,7 +325,7 @@ void WallFollow::handle_slow_down(){
     static int center_v = this->depth_array.rows * (2.0/3.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
     float center_avg = cv::mean(center_wall)[0];
 
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
