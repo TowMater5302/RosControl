@@ -5,9 +5,10 @@
 #include <cmath>
 #define MICROSECOND 1000000
 
-class JumpNode: ros::NodeHandle
+class Jump
 {
     private:
+        ros::NodeHandle *m_node_handle;
         ros::ServiceClient m_client;
 
         // PARAMETERS - from config file or command line
@@ -76,8 +77,12 @@ class JumpNode: ros::NodeHandle
 
     public:
 
-        JumpNode() : NodeHandle("~")
+        Jump(ros::NodeHandle *node_handle)
         {
+            m_node_handle = node_handle;
+            // connect to servo for motor control
+            m_client = m_node_handle->serviceClient<pololu_maestro_ros::set_servo>("set_servo");
+
             std::string param_name; 
 
             if (searchParam("ramp_base", param_name))
@@ -163,13 +168,9 @@ class JumpNode: ros::NodeHandle
             // calculate some constants that we need
             m_ramp_diagonal = std::sqrt(std::pow(m_ramp_base, 2) + std::pow(m_ramp_height, 2));
             m_ramp_angle = std::asin(m_ramp_height / m_ramp_diagonal);
-
-            // connect to servo for motor control
-            m_client = serviceClient<pololu_maestro_ros::set_servo>("set_servo");
-
         }
 
-    ~JumpNode(){}
+    ~Jump(){}
 
     void doJump()
     {
@@ -182,7 +183,7 @@ class JumpNode: ros::NodeHandle
         ROS_INFO("Calculated Speed Up Time: %f", speed_up_time);
         ROS_INFO("Calculated Air Time: %f", air_time);
         ROS_INFO("Calculate RPM: %i", rpm);
-
+        
         pololu_maestro_ros::set_servo srv;
 
         // set speed to initial speed for jump
@@ -219,10 +220,11 @@ int main(int argc, char** argv)
 
     //Initialize node
     ros::init(argc, argv, "do_jump");
-
-    //create node 
-    auto jump_node = JumpNode();
+    ros::NodeHandle nh;
+     
+    auto jump_node = Jump(&nh);
     jump_node.doJump();
 
+    ros::spin();
     return 0;
 }
