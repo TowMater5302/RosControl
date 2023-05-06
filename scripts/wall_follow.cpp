@@ -40,7 +40,9 @@ class WallFollow {
         float stop_sign_seconds_stopped;
         cv::CascadeClassifier stop_classifier;
 
-        
+        int turn_angle;
+        const int TURN_ANGLE_STRAIGHT = 6000;
+
         float slow_threshold;
         double turn_exit_speed;
         double turn_yaw_threshold;
@@ -86,6 +88,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     ROS_INFO("Inside the constructor");
     nh->getParam("turn_direction", this->turn_direction);
     ROS_INFO("Set turn direction: %s", this->turn_direction.c_str());
+
+    nh->getParam("turn_angle", this->turn_angle);
+    ROS_INFO("Set turn angle: %i", this->turn_angle);
 
     nh->getParam("control_type", this->control_type);
     ROS_INFO("Set control type: %s", this->control_type.c_str());
@@ -317,7 +322,6 @@ void WallFollow::handle_pid(){
     }
 }
 
-
 // detect when to start to turn
 void WallFollow::handle_slow_down(){
     // get average depth at the center of image
@@ -326,7 +330,16 @@ void WallFollow::handle_slow_down(){
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
     cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
+    cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
+
     float center_avg = cv::mean(center_wall)[0];
+    float left_avg = cv::mean(left_wall)[0];
+    float right_avg = cv::mean(right_wall)[0];
+
+    // To avoid inlets in walls, clip the right and left averages if they are too far away
+    right_avg = std::min(this->inlet_threshold, right_avg);
+    left_avg = std::min(this->inlet_threshold, left_avg);
 
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
 
@@ -344,17 +357,33 @@ void WallFollow::handle_slow_down(){
         }
     }
 
+    // handle control to the car in order to wall follow
+    if(this->control_type == "pid") {
+        pidControl(left_avg, right_avg);
+    } else {
+        thresholdControl(left_avg, right_avg);
+    }
+
     if (center_avg < this->turn_threshold) {
         this->drive_mode = "TURN";
         ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
         this->yaw_before_turn = this->yaw;
         // if turn direction is left
         if (this->turn_direction == "left") {
-            steer(4000);
+            //subtract angle for left turn
+            steer(this->TURN_ANGLE_STRAIGHT - this->turn_angle);
         }
         else {
-            steer(8000);
+            // add angle for right turn
+            steer(this->TURN_ANGLE_STRAIGHT + this->turn_angle);
         }
+        
+    }
+    else if (center_avg > this->slow_threshold) {
+        ROS_INFO("(Mode Change) SLOW_DOWN -> PID");
+        drive(this->normal_speed);
+        this->drive_speed = this->normal_speed;
+        this->drive_mode = "PID";
     }
     return;
 }
@@ -414,7 +443,7 @@ void WallFollow::pidControl(float left_avg, float right_avg) {
     double control = Pout + Iout + Dout + 1500;
     prev_error = error;
 
-    ROS_INFO("[PID] WallFollow: turn value = %f", control);
+    ROS_INFO("[%s] WallFollow: turn value = %f", this->drive_mode.c_str(), control);
     steer(4*static_cast<int>(control));
 }
 

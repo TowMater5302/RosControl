@@ -7,6 +7,12 @@
 
 int fd; // file description for the serial port
 
+// bool get(polulu_maestro_ros::get_servo::Request  &req,
+//          polulu_maestro_ros::get_servo::Response &res){
+//     unsigned char command[] = {0x90, req.channel, req.target & 0x7F, req.target >> 7 & 0x7F};
+
+// }
+
 //callback for service
 bool set(pololu_maestro_ros::set_servo::Request  &req,
          pololu_maestro_ros::set_servo::Response &res)
@@ -24,8 +30,6 @@ bool set(pololu_maestro_ros::set_servo::Request  &req,
     } else {
         ROS_INFO("Successfully set servo channel");
     }
-
-    // FOR SOME REASON, THIS WORKS BUT DOESN'T ACTUALLY AFFECT ANYTHING.
 
     return true;
 }

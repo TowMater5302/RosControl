@@ -1,13 +1,22 @@
-# start_speed: 6400
-# start_segments: 5
 
-jump_speed: 6630
+jump_distance: 0.5 # meters
+speed_up_distance: 1.5 # meters
+
+ramp_base: 17
+ramp_height: 17
+ramp_units: 'inch'
+
 stop_speed: 6000
+slow_speed: 6100
+slow_time: 0.5     # seconds
 
-# ramp_up_time: 0.1
-forward_time: 1.4
-# air_time: 0.3
 
+
+#### OLD YAML FILE STUFF
+
+# jump_speed: 6630
+# stop_speed: 6000
+# forward_time: 1.4
 
 # measured dist | calculated dist | forward time | speed
 # -------------------------------------------------------
