@@ -40,7 +40,8 @@ class WallFollow {
         float stop_sign_seconds_stopped;
         cv::CascadeClassifier stop_classifier;
 
-        
+        const int TURN_ANGLE_STRAIGHT = 6000;
+        int turn_angle;
         float slow_threshold;
         double turn_exit_speed;
         double turn_yaw_threshold;
@@ -86,6 +87,8 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     ROS_INFO("Inside the constructor");
     nh->getParam("turn_direction", this->turn_direction);
     ROS_INFO("Set turn direction: %s", this->turn_direction.c_str());
+
+    nh->getParam("turn_angle", this->turn_angle);
 
     nh->getParam("control_type", this->control_type);
     ROS_INFO("Set control type: %s", this->control_type.c_str());
@@ -350,10 +353,10 @@ void WallFollow::handle_slow_down(){
         this->yaw_before_turn = this->yaw;
         // if turn direction is left
         if (this->turn_direction == "left") {
-            steer(4000);
+            steer(TURN_ANGLE_STRAIGHT - turn_angle);
         }
         else {
-            steer(8000);
+            steer(TURN_ANGLE_STRAIGHT + turn_angle);
         }
     }
     return;
