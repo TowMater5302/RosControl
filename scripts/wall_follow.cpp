@@ -177,14 +177,48 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
 void WallFollow::irCallback(const std_msgs::Int32::ConstPtr& data){
     // ROS_INFO("The IR Callback %d", data->data);
-    float volt = (data->data / 692.0) * 5.0;
-    // ROS_INFO("The IR Callback volt %f", volt);
-    this->ir_dist = (1.0 / ((volt*1000 - 1125) / 137500.0)) / 100.0;
-    if(volt < 1.5){
-        this->ir_dist = 5;
+    if(data->data < 120) {
+        return;
     }
-    // ROS_INFO("The IR Callback dist %f", this->ir_dist);
-    run();
+    // ROS_INFO("The IR Callback volt %f", volt);
+    this->ir_dist = data->data;
+
+    ROS_INFO("The IR Callback dist %f", this->ir_dist);
+    // if drive mode is PID and approaching wall then switch to slow down mode
+    if(this->drive_mode == "PID" && this->ir_dist > this->slow_threshold) {
+        ROS_INFO("[PID] The IR Callback dist %f", this->ir_dist);
+        ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
+        drive(this->turn_speed);
+        this->drive_mode = "SLOW_DOWN"; 
+    }
+    // if drive mode is slow down
+    else if (this->drive_mode == "SLOW_DOWN" && this->ir_dist > turn_threshold) {
+        // approaching turn
+        ROS_INFO("[SLOW_DOWN] The IR Callback dist %f", this->ir_dist);
+        if (this->ir_dist > turn_threshold) {
+            this->drive_mode = "TURN";
+            ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+            this->yaw_before_turn = this->yaw;
+            // if turn direction is left
+            if (this->turn_direction == "left") {
+                //subtract angle for left turn
+                steer(this->TURN_ANGLE_STRAIGHT - this->turn_angle);
+            }
+            else {
+                // add angle for right turn
+                steer(this->TURN_ANGLE_STRAIGHT + this->turn_angle);
+            }
+        } 
+        // if drive mode is slow down but was a false measure then switch back to pid
+        else if (this->ir_dist < this->slow_threshold) {
+            ROS_INFO("(Mode Change) SLOW_DOWN -> PID");
+            drive(this->normal_speed);
+            this->drive_speed = this->normal_speed;
+            this->drive_mode = "PID";
+        }
+
+    }
+
 }
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
@@ -213,6 +247,7 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     // interpolate the depth data to fill in the missing values
     // TODO - this is a hack, need to find a better way to interpolate
     cv::medianBlur(this->depth_array, this->depth_array, 5);
+    run();
 }
 
 std::string WallFollow::stopSignDetect() {
@@ -305,20 +340,20 @@ void WallFollow::handle_pid(){
     right_avg = std::min(this->inlet_threshold, right_avg);
     left_avg = std::min(this->inlet_threshold, left_avg);
 
-    ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
+    // ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
 
     // We have been in pid mode long enough and can now look to see if we should exit
     if (this->stay_in_pid_ct == 0){
 
-        float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
-        float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->slow_threshold;
-        // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
-        if (weighted_distance < weighted_threshold) {
-            ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
-            drive(this->turn_speed);
-            this->drive_mode = "SLOW_DOWN"; 
-            return;
-        }
+        // float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
+        // float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->slow_threshold;
+        // // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
+        // if (weighted_distance < weighted_threshold) {
+        //     ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
+        //     drive(this->turn_speed);
+        //     this->drive_mode = "SLOW_DOWN"; 
+        //     return;
+        // }
 
         // Decide if we should stop
         if (this->enable_stop_sign){
@@ -369,7 +404,7 @@ void WallFollow::handle_slow_down(){
     right_avg = std::min(this->inlet_threshold, right_avg);
     left_avg = std::min(this->inlet_threshold, left_avg);
 
-    ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
+    // ROS_INFO("[%s] Center (realsenze) %f,    Center (ir) %f", this->drive_mode.c_str(), center_avg, this->ir_dist);
 
     // Decide if we should stop
     if (this->enable_stop_sign){
@@ -392,30 +427,30 @@ void WallFollow::handle_slow_down(){
         thresholdControl(left_avg, right_avg);
     }
 
-    float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
-    float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->turn_threshold;
-    // Decide if we should leave "SLOW_DOWN" mode and go to "TURN" mode
-    if (weighted_distance < weighted_threshold) {
-        this->drive_mode = "TURN";
-        ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
-        this->yaw_before_turn = this->yaw;
-        // if turn direction is left
-        if (this->turn_direction == "left") {
-            //subtract angle for left turn
-            steer(this->TURN_ANGLE_STRAIGHT - this->turn_angle);
-        }
-        else {
-            // add angle for right turn
-            steer(this->TURN_ANGLE_STRAIGHT + this->turn_angle);
-        }
+    // float weighted_distance = this->ir_mix * this->ir_dist + (1 - this->ir_mix) * center_avg;
+    // float weighted_threshold = this->ir_mix * this->ir_threshold + (1-this->ir_mix) * this->turn_threshold;
+    // // Decide if we should leave "SLOW_DOWN" mode and go to "TURN" mode
+    // if (weighted_distance < weighted_threshold) {
+    //     this->drive_mode = "TURN";
+    //     ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+    //     this->yaw_before_turn = this->yaw;
+    //     // if turn direction is left
+    //     if (this->turn_direction == "left") {
+    //         //subtract angle for left turn
+    //         steer(this->TURN_ANGLE_STRAIGHT - this->turn_angle);
+    //     }
+    //     else {
+    //         // add angle for right turn
+    //         steer(this->TURN_ANGLE_STRAIGHT + this->turn_angle);
+    //     }
         
-    }
-    else if (center_avg > this->slow_threshold) {
-        ROS_INFO("(Mode Change) SLOW_DOWN -> PID");
-        drive(this->normal_speed);
-        this->drive_speed = this->normal_speed;
-        this->drive_mode = "PID";
-    }
+    // }
+    // else if (center_avg > this->slow_threshold) {
+    //     ROS_INFO("(Mode Change) SLOW_DOWN -> PID");
+    //     drive(this->normal_speed);
+    //     this->drive_speed = this->normal_speed;
+    //     this->drive_mode = "PID";
+    // }
     return;
 }
 
@@ -533,6 +568,9 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     signal(SIGINT, sigintHandler);
     WallFollow wall_follow(&nh);
-    ros::spin();
+    ros::AsyncSpinner spinner(2);
+    spinner.start();
+    ros::waitForShutdown();
+    // ros::spin();
     return 0;
 }

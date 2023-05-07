@@ -17,7 +17,7 @@ turn_direction: 'left'
 turn_angle: 2000
 
 # threshold in meteres when the robot starts turning
-turn_threshold: 4.1
+turn_threshold: 245
 
 # alpha - the FOV in degree within which the robot will look for a wall
 alpha: 60
@@ -25,10 +25,10 @@ alpha: 60
 # normal_speed - the speed with which robot will normally drive (6400 original)
 #(6400 for racing)
 #(6250 for stop detection)
-normal_speed: 6300
+normal_speed: 6400
 
 # turn_speed - the speed with which robot will drive while turning at corner
-turn_speed: 5500
+turn_speed: 6150
 
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: false
@@ -36,10 +36,10 @@ enable_stop_sign: false
 # the speed for which it goes immediately after the turn 
 #(6400 for racing)
 #(6250 for stop detection)
-turn_exit_speed: 6300
+turn_exit_speed: 6400
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
-slow_threshold: 4.5
+slow_threshold: 150
 
 # the duration for which the robot takes the turn
 turn_timer: 0.0
@@ -47,7 +47,7 @@ turn_timer: 0.0
 # the duration for which the robot continues moving at the slower speed after taking the turn
 slow_timer: 0.0
 
-turn_yaw_threshold: .3
+turn_yaw_threshold: .25
 
 inlet_threshold: 2.0
 
@@ -59,4 +59,4 @@ stop_sign_seconds_stopped: 3
 ir_threshold: 4.5
 
 # 1.0 if we want to only consider ir depth for turn detection, 0.0 if we only want to use realsense, 0.5 if equal mix.
-ir_mix: 0
+ir_mix: 1.0
