@@ -41,22 +41,8 @@ turn_exit_speed: 6400
 # slow_threshold -  threshold in meters when the robot starts slowing down
 slow_threshold: 150
 
-# the duration for which the robot takes the turn
-turn_timer: 0.0
-
-# the duration for which the robot continues moving at the slower speed after taking the turn
-slow_timer: 0.0
-
 turn_yaw_threshold: .25
 
 inlet_threshold: 2.0
 
-# when a stop sign blob is this big, we actually stop.
-stop_sign_size_to_stop: 15000.0
-
-stop_sign_seconds_stopped: 3
-
-ir_threshold: 4.5
-
-# 1.0 if we want to only consider ir depth for turn detection, 0.0 if we only want to use realsense, 0.5 if equal mix.
-ir_mix: 1.0
+run_avg_alpha: 0.5
