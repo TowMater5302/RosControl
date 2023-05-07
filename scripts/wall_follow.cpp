@@ -31,6 +31,7 @@ class WallFollow {
         float alpha; // field of view within which the robot will look for a wall
         int normal_speed; // speed at which the robot will drive when not turning
         int turn_speed; // speed at which the robot will drive when turning
+        int brake_speed; // speed during slowdown mode
         std::string control_type; // "pid" or "threshold"
         double Kp; // proportional gain
         double Ki; // integral gain
@@ -63,6 +64,8 @@ class WallFollow {
         ros::Subscriber sub3;
         ros::NodeHandle *nh;
         ros::Timer timer;
+
+        bool just_turned = false;
 
     public:
         WallFollow(ros::NodeHandle* nh);
@@ -119,6 +122,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
     nh->getParam("turn_speed", this->turn_speed);
     ROS_INFO("Set turn speed: %d", this->turn_speed);
+
+    nh->getParam("brake_speed", this->brake_speed);
+    ROS_INFO("Set brake speed: %d", this->brake_speed);
 
     nh->getParam("turn_exit_speed", this->turn_exit_speed);
     ROS_INFO("Set turn exit speed: %f", this->turn_exit_speed);
@@ -266,7 +272,7 @@ void WallFollow::handle_pid(){
     // static float d = center_h * std::tan(this->alpha * M_PI / 180.0) / std::tan(FOV_H * M_PI / 180.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
     cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
     cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
 
@@ -285,7 +291,8 @@ void WallFollow::handle_pid(){
         // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
         if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
             ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
-            drive(this->turn_speed);
+            drive(this->brake_speed);
+            steer(TURN_ANGLE_STRAIGHT);
             this->drive_mode = "SLOW_DOWN"; 
             return;
         }
@@ -328,7 +335,7 @@ void WallFollow::handle_slow_down(){
     static int center_v = this->depth_array.rows * (2.0/3.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(100, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
     float center_avg = cv::mean(center_wall)[0];
 
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
@@ -350,6 +357,9 @@ void WallFollow::handle_slow_down(){
     if (center_avg < this->turn_threshold) {
         this->drive_mode = "TURN";
         ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+        this->just_turned = true;
+        this->drive_speed = this->turn_speed;
+        drive(this->drive_speed);
         this->yaw_before_turn = this->yaw;
         // if turn direction is left
         if (this->turn_direction == "left") {
@@ -398,6 +408,13 @@ void WallFollow::timerCallback(const ros::TimerEvent& event) {
 void WallFollow::pidControl(float left_avg, float right_avg) {
     static double prev_error = 0;
     static double integral = 0;
+
+    if (this->just_turned)
+    {
+        prev_error = 0;
+        integral = 0;
+        this->just_turned = false;
+    }
 
     // error would be the difference between the left and right averages
     double error = left_avg - right_avg;
