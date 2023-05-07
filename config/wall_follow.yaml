@@ -1,7 +1,7 @@
 # pid terms
 # original = -50, 0, -5
 pid: {
-  kp: -75.0,
+  kp: -65.0,
   ki: -15.0,
   kd: -7.0,
 }
@@ -9,14 +9,14 @@ pid: {
 control_type: 'pid'
 
 # turn direction - 'left' or 'right' when the robot is approaching a turn
-turn_direction: 'left'
+turn_direction: 'right'
 turn_angle: 1000 # (0, 2000) 
 
 # threshold in meteres when the robot starts turning
-turn_threshold: 3.2 
+turn_threshold: 1.0
 
 # alpha - the FOV in degree within which the robot will look for a wall
-alpha: 50
+alpha: 60
 
 # normal_speed - the speed with which robot will normally drive (6400 original)
 #(6400 for racing)
@@ -27,7 +27,7 @@ normal_speed: 6175
 turn_speed: 6125
 
 # brake_speed - the speed we use during the slowdown mode
-brake_speed: 4800
+brake_speed: 6010
 
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: false
@@ -38,7 +38,7 @@ enable_stop_sign: false
 turn_exit_speed: 6175
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
-slow_threshold: 4.3
+slow_threshold: 3.5
 
 # the duration for which the robot takes the turn
 turn_timer: 0.0

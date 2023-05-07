@@ -272,7 +272,7 @@ void WallFollow::handle_pid(){
     // static float d = center_h * std::tan(this->alpha * M_PI / 180.0) / std::tan(FOV_H * M_PI / 180.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(200, center_v), cv::Range(center_h - d, center_h + d));
     cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
     cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
 
@@ -335,7 +335,7 @@ void WallFollow::handle_slow_down(){
     static int center_v = this->depth_array.rows * (2.0/3.0);
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-    cv::Mat center_wall = this->depth_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat center_wall = this->depth_array(cv::Range(200, center_v), cv::Range(center_h - d, center_h + d));
     float center_avg = cv::mean(center_wall)[0];
 
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
@@ -373,8 +373,16 @@ void WallFollow::handle_slow_down(){
 }
 
 void WallFollow::handle_turn(){
+    static int center_h = this->depth_array.cols / 2;
+    static int center_v = this->depth_array.rows * (2.0/3.0);
+    static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
+
+    cv::Mat center_wall = this->depth_array(cv::Range(200, center_v), cv::Range(center_h - d, center_h + d));
+    float center_avg = cv::mean(center_wall)[0];
+
     double diff = getAbsoluteDiff2Angles(this->yaw, this->yaw_before_turn);
     ROS_INFO("[TURN] (yaw prev: %f, yaw cur: %f, diff: %f)", this->yaw_before_turn, this->yaw, diff);
+    ROS_INFO("Wall Center: %f", center_avg );
 
     // Decide if we should stop
     if (this->enable_stop_sign){
@@ -390,7 +398,7 @@ void WallFollow::handle_turn(){
         }
     }
 
-    if (diff > this->turn_yaw_threshold) {
+    if (diff > this->turn_yaw_threshold || center_avg > this->slow_threshold) {
         ROS_INFO("(Mode Change) TURN -> PID");
         this->drive_mode = "PID";
         this->drive_speed = this->turn_exit_speed;
