@@ -64,11 +64,12 @@ class Jump
         {
             // landing meter (m)
             double half_ramp = m_ramp_base / 2.0;
-            double car = 0.2;
+            double car = 0.3;
             
-            double d = m_jump_distance + half_ramp + car;
+            // double d = m_jump_distance + half_ramp + car;
+            double d = m_jump_distance + car;
 
-            double v = projectile_speed(d);
+	    double v = projectile_speed(d);
             double t = jump_time(v);
             double rpm = calculate_rpm(v);
             
@@ -85,72 +86,72 @@ class Jump
 
             std::string param_name; 
 
-            if (searchParam("ramp_base", param_name))
+            if (m_node_handle->searchParam("ramp_base", param_name))
             {
-                getParam(param_name, m_ramp_base);
+                m_node_handle->getParam(param_name, m_ramp_base);
             }
             else
             {
                 ROS_WARN("Parameter 'ramp_base' not defined");
             }
 
-            if (searchParam("ramp_height", param_name))
+            if (m_node_handle->searchParam("ramp_height", param_name))
             {
-                getParam(param_name, m_ramp_height);
+                m_node_handle->getParam(param_name, m_ramp_height);
             }
             else
             {
                 ROS_WARN("Parameter 'ramp_height' not defined");
             }
 
-            if (searchParam("ramp_units", param_name))
+            if (m_node_handle->searchParam("ramp_units", param_name))
             {
-                getParam(param_name, m_ramp_units);
+                m_node_handle->getParam(param_name, m_ramp_units);
             }
             else
             {
                 ROS_WARN("Parameter 'ramp_units' not defined");
             }
 
-            if (searchParam("jump_distance", param_name))
+            if (m_node_handle->searchParam("jump_distance", param_name))
             {
-                getParam(param_name, m_jump_distance);
+                m_node_handle->getParam(param_name, m_jump_distance);
             }
             else
             {
                 ROS_WARN("Parameter 'jump distance' not defined");
             }
 
-            if (searchParam("speed_up_distance", param_name))
+            if (m_node_handle->searchParam("speed_up_distance", param_name))
             {
-                getParam(param_name, m_speed_up_distance);
+                m_node_handle->getParam(param_name, m_speed_up_distance);
             }
             else
             {
                 ROS_WARN("Parameter 'speed_up_distance' not defined");
             }
 
-            if (searchParam("stop_speed", param_name))
+            if (m_node_handle->searchParam("stop_speed", param_name))
             {
-                getParam(param_name, m_stop_speed);
+                m_node_handle->getParam(param_name, m_stop_speed);
             }
             else
             {
                 ROS_WARN("Parameter 'stop_speed' not defined");
             }
 
-            if (searchParam("slow_speed", param_name))
+            if (m_node_handle->searchParam("slow_speed", param_name))
             {
-                getParam(param_name, m_slow_speed);
+                m_node_handle->getParam(param_name, m_slow_speed);
             }
             else
             {
                 ROS_WARN("Parameter 'stop_speed' not defined");
             }
 
-            if (searchParam("slow_time", param_name))
+            if (m_node_handle->searchParam("slow_time", param_name))
             {
-                getParam(param_name, m_slow_time);
+                m_node_handle->getParam(param_name, m_slow_time);
             }
             else
             {
@@ -168,6 +169,21 @@ class Jump
             // calculate some constants that we need
             m_ramp_diagonal = std::sqrt(std::pow(m_ramp_base, 2) + std::pow(m_ramp_height, 2));
             m_ramp_angle = std::asin(m_ramp_height / m_ramp_diagonal);
+       
+
+	    // FOR DEBUG
+            ROS_INFO("End of Constructor");       
+            ROS_INFO("Ramp base (m): %f", m_ramp_base);       
+            ROS_INFO("Ramp height (m): %f", m_ramp_height);        
+            ROS_INFO("Ramp diagonal (m): %f", m_ramp_diagonal);       
+            ROS_INFO("Ramp angle (rad): %f", m_ramp_angle);       
+
+            ROS_INFO("Jump Distance (m): %f", m_jump_distance);
+            ROS_INFO("Speed up Distance (m): %f", m_speed_up_distance);
+
+	    ROS_INFO("Stop RPM: %i", m_stop_speed); 
+            ROS_INFO("Slow Speed RPM): %i", m_slow_speed);
+            ROS_INFO("Slow Time: %f\n\n", m_slow_time);
         }
 
     ~Jump(){}
@@ -176,7 +192,7 @@ class Jump
     {
         Result result = calculate_speed();
 
-        double speed_up_time = m_speed_up_distance / result.speed;
+        double speed_up_time = (m_speed_up_distance + 2*m_ramp_base + 0.5) / result.speed;
         double air_time = result.jump_time;
         int rpm = (int) result.rpm;
 
@@ -187,6 +203,15 @@ class Jump
         pololu_maestro_ros::set_servo srv;
 
         // set speed to initial speed for jump
+	
+	if (rpm > 6500)
+	{
+	    srv.request.channel = 1;
+	    srv.request.target = 6450;
+	    m_client.call(srv);
+	    usleep(100); // 10 microseconds
+	}
+
         ROS_INFO("Set initial speed");
         srv.request.channel = 1;
         srv.request.target = rpm;
@@ -231,6 +256,6 @@ int main(int argc, char** argv)
     auto jump_node = Jump(&nh);
     jump_node.doJump();
 
-    ros::spin();
+    ros::spinOnce();
     return 0;
 }

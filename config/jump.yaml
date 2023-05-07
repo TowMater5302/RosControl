@@ -1,9 +1,9 @@
 
-jump_distance: 1.0 # meters
-speed_up_distance: 1.5 # meters
-
-ramp_base: 24
-ramp_height: 12
+jump_distance: 1.5 # meters
+speed_up_distance: 4.5 # meters; needs to be +2m larger than actual distance
+                        # use 3.5m for <= 1.0m jump; use 4.5m for 1.5m jump
+ramp_base: 24.0
+ramp_height: 12.0
 ramp_units: 'inch'
 
 stop_speed: 6000
