@@ -9,11 +9,11 @@ pid: {
 control_type: 'pid'
 
 # turn direction - 'left' or 'right' when the robot is approaching a turn
-turn_direction: 'right'
-turn_angle: 1000 # (0, 2000) 
+turn_direction: 'left'
+turn_angle: 1200 # (0, 2000) 
 
 # threshold in meteres when the robot starts turning
-turn_threshold: 1.0
+turn_threshold: 2.2
 
 # alpha - the FOV in degree within which the robot will look for a wall
 alpha: 60
@@ -27,7 +27,7 @@ normal_speed: 6175
 turn_speed: 6125
 
 # brake_speed - the speed we use during the slowdown mode
-brake_speed: 6010
+brake_speed: 5000
 
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: false
@@ -38,7 +38,7 @@ enable_stop_sign: false
 turn_exit_speed: 6175
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
-slow_threshold: 3.5
+slow_threshold: 2.8
 
 # the duration for which the robot takes the turn
 turn_timer: 0.0
@@ -46,7 +46,7 @@ turn_timer: 0.0
 # the duration for which the robot continues moving at the slower speed after taking the turn
 slow_timer: 0.0
 
-turn_yaw_threshold: .8
+turn_yaw_threshold: 1
 
 inlet_threshold: 2.0
 
@@ -57,7 +57,9 @@ stop_sign_seconds_stopped: 3
 
 visual_detection_of_deep_walls: true
 
-min_brown_match: .1
+min_brown_match: .15
 
 # increase turn and slow thresholds by this much
-deep_wall_scaling: 1.4
+deep_wall_scaling: 1.7
+
+deep_alpha: 30

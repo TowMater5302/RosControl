@@ -29,6 +29,7 @@ class WallFollow {
         std::string turn_direction; // "left" or "right" - when the robot is approaching a turn
         float turn_threshold; // distance at which the robot should start turning
         float alpha; // field of view within which the robot will look for a wall
+        float deep_alpha;
         int normal_speed; // speed at which the robot will drive when not turning
         int turn_speed; // speed at which the robot will drive when turning
         int brake_speed; // speed during slowdown mode
@@ -118,6 +119,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     nh->getParam("alpha", this->alpha);
     ROS_INFO("Set alpha: %f", this->alpha);
 
+    nh->getParam("deep_alpha", this->deep_alpha);
+    ROS_INFO("Set deep_alpha: %f", this->deep_alpha);
+
     nh->getParam("inlet_threshold", this->inlet_threshold);
     ROS_INFO("Set inlet threshold: %f", this->inlet_threshold);
 
@@ -184,14 +188,14 @@ void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
         this->color_array = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::BGR8)->image;
 
         if (this->enable_deep_wall_detection){
-            cv::Scalar lower_brown(0, 90, 130); // BGR format
-            cv::Scalar upper_brown(60, 135, 250); // BGR format
+            cv::Scalar lower_brown(0, 80, 100); // BGR format
+            cv::Scalar upper_brown(80, 145, 250); // BGR format
 
             static int center_h = this->color_array.cols / 2;
             static int center_v = this->color_array.rows * (2.0/3.0);
-            static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
+            static int d = std::floor(center_h * std::tan(this->deep_alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
-            cv::Mat center_wall = this->color_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
+            cv::Mat center_wall = this->color_array(cv::Range(0, center_v), cv::Range(center_h - d, center_h + d));
 
             cv::Mat mask;
             cv::inRange(center_wall, lower_brown, upper_brown, mask);
@@ -455,7 +459,7 @@ void WallFollow::handle_turn(){
         }
     }
 
-    if (diff > this->turn_yaw_threshold || center_avg > this->slow_threshold) {
+    if (diff > this->turn_yaw_threshold) {
         ROS_INFO("(Mode Change) TURN -> PID");
         this->drive_mode = "PID";
         this->drive_speed = this->turn_exit_speed;
