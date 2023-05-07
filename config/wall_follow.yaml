@@ -54,3 +54,10 @@ inlet_threshold: 2.0
 stop_sign_size_to_stop: 15000.0
 
 stop_sign_seconds_stopped: 3
+
+visual_detection_of_deep_walls: true
+
+min_brown_match: .1
+
+# increase turn and slow thresholds by this much
+deep_wall_scaling: 1.4

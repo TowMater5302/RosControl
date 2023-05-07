@@ -37,6 +37,10 @@ class WallFollow {
         double Ki; // integral gain
         double Kd; // derivative gain
         bool enable_stop_sign; // whether to look for stop signs
+        bool enable_deep_wall_detection;
+        float deep_wall_scaling;
+        bool deep_wall_ahead;
+        float min_brown_match;
         float stop_sign_size_to_stop;
         float stop_sign_seconds_stopped;
         cv::CascadeClassifier stop_classifier;
@@ -153,7 +157,16 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     nh->getParam("enable_stop_sign", this->enable_stop_sign);
     ROS_INFO("Set enable stop sign: %d", this->enable_stop_sign);
 
-    if (this->enable_stop_sign){
+    nh->getParam("visual_detection_of_deep_walls", this->enable_deep_wall_detection);
+    ROS_INFO("Set enable stop sign: %d", this->enable_deep_wall_detection);
+
+    nh->getParam("min_brown_match", this->min_brown_match);
+    ROS_INFO("Set min_brown_match: %f", this->min_brown_match);
+
+    nh->getParam("deep_wall_scaling", this->deep_wall_scaling);
+    ROS_INFO("Set deep wall scaling: %f", this->deep_wall_scaling);
+
+    if (this->enable_stop_sign || this->enable_deep_wall_detection){
         this->sub3 = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
 
         if (!this->stop_classifier.load("/home/odroid/Desktop/towmater_ws/src/RosControl/data/cascade.xml"))
@@ -166,8 +179,42 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
     // Convert the image to a cv::Mat
+    
     try {
         this->color_array = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::BGR8)->image;
+
+        if (this->enable_deep_wall_detection){
+            cv::Scalar lower_brown(0, 90, 130); // BGR format
+            cv::Scalar upper_brown(60, 135, 250); // BGR format
+
+            static int center_h = this->color_array.cols / 2;
+            static int center_v = this->color_array.rows * (2.0/3.0);
+            static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
+
+            cv::Mat center_wall = this->color_array(cv::Range(150, center_v), cv::Range(center_h - d, center_h + d));
+
+            cv::Mat mask;
+            cv::inRange(center_wall, lower_brown, upper_brown, mask);
+            cv::Mat detected_output;
+            cv::bitwise_and(center_wall, center_wall, detected_output, mask);
+
+            // Convert the masked image to grayscale
+            cv::Mat mask_gray;
+            cv::cvtColor(detected_output, mask_gray, cv::COLOR_BGR2GRAY);
+
+            int total_pixels = mask_gray.rows * mask_gray.cols;
+            int brown_pixels = cv::countNonZero(mask_gray);
+            double percent_brown = static_cast<double>(brown_pixels) / total_pixels;
+
+            if(percent_brown > this->min_brown_match){
+                ROS_INFO("[Detect Deep Wall]: true, %f", percent_brown);
+                this->deep_wall_ahead = true;
+            }
+            else {
+                ROS_INFO("[Detect Deep Wall]: false, %f", percent_brown);
+                this->deep_wall_ahead = false;
+            }
+        }
     }
     catch (cv_bridge::Exception& e) {
         ROS_ERROR("cv_bridge exception: %s", e.what());
@@ -176,6 +223,7 @@ void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
 
 void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     // Convert the depth image to a cv::Mat
+    
     try {
         this->cv_ptr = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::TYPE_16UC1);
     }
@@ -230,7 +278,6 @@ std::string WallFollow::stopSignDetect() {
         int total_pixels = mask_gray.rows * mask_gray.cols;
         int red_pixels = cv::countNonZero(mask_gray);
         double percentage_red = static_cast<double>(red_pixels) / total_pixels;
-
         
 
         if (percentage_red > .1){
@@ -289,8 +336,13 @@ void WallFollow::handle_pid(){
     // We have been in pid mode long enough and can now look to see if we should exit
     if (this->stay_in_pid_ct == 0){
         // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
-        if (center_avg < this->slow_threshold || center_avg < this->turn_threshold) {
-            ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
+        float threshold = this->slow_threshold;
+        if (this->deep_wall_ahead){
+            threshold *= this->deep_wall_scaling;
+        }
+
+        if (center_avg < threshold) {
+            ROS_INFO("(Mode Change) %s -> SLOW_DOWN (Deep Detected? %d)", this->drive_mode.c_str(), this->deep_wall_ahead);
             drive(this->brake_speed);
             steer(TURN_ANGLE_STRAIGHT);
             this->drive_mode = "SLOW_DOWN"; 
@@ -354,9 +406,14 @@ void WallFollow::handle_slow_down(){
         }
     }
 
-    if (center_avg < this->turn_threshold) {
+    float threshold = this->turn_threshold;
+    if (this->deep_wall_ahead){
+        threshold *= this->deep_wall_scaling;
+    }
+
+    if (center_avg < threshold) {
         this->drive_mode = "TURN";
-        ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+        ROS_INFO("(Mode Change) %s -> SLOW_DOWN (Deep Detected? %d)", this->drive_mode.c_str(), this->deep_wall_ahead);
         this->just_turned = true;
         this->drive_speed = this->turn_speed;
         drive(this->drive_speed);
@@ -501,6 +558,9 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     signal(SIGINT, sigintHandler);
     WallFollow wall_follow(&nh);
-    ros::spin();
+    ros::AsyncSpinner spinner(3);
+    spinner.start();
+    ros::waitForShutdown();
+    // ros::spin();
     return 0;
 }
