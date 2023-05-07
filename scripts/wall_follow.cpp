@@ -38,7 +38,7 @@ class WallFollow {
         double Kd; // derivative gain
         bool enable_stop_sign; // whether to look for stop signs
         bool enable_deep_wall_detection;
-        float deep_wall_threshold_scaling;
+        float deep_wall_scaling;
         bool deep_wall_ahead;
         float min_brown_match;
         float stop_sign_size_to_stop;
@@ -161,10 +161,10 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     ROS_INFO("Set enable stop sign: %d", this->enable_deep_wall_detection);
 
     nh->getParam("min_brown_match", this->min_brown_match);
-    ROS_INFO("Set min_brown_match: %d", this->min_brown_match);
+    ROS_INFO("Set min_brown_match: %f", this->min_brown_match);
 
     nh->getParam("deep_wall_scaling", this->deep_wall_scaling);
-    ROS_INFO("Set deep wall scaling: %d", this->deep_wall_scaling);
+    ROS_INFO("Set deep wall scaling: %f", this->deep_wall_scaling);
 
     if (this->enable_stop_sign || this->enable_deep_wall_detection){
         this->sub3 = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
@@ -179,12 +179,13 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
     // Convert the image to a cv::Mat
+    
     try {
         this->color_array = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::BGR8)->image;
 
         if (this->enable_deep_wall_detection){
-            cv::Scalar lower_brown(0, 25, 45); // BGR format
-            cv::Scalar upper_brown(25, 70, 100); // BGR format
+            cv::Scalar lower_brown(0, 90, 130); // BGR format
+            cv::Scalar upper_brown(60, 135, 250); // BGR format
 
             static int center_h = this->color_array.cols / 2;
             static int center_v = this->color_array.rows * (2.0/3.0);
@@ -222,6 +223,7 @@ void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
 
 void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
     // Convert the depth image to a cv::Mat
+    
     try {
         this->cv_ptr = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::TYPE_16UC1);
     }
@@ -276,7 +278,6 @@ std::string WallFollow::stopSignDetect() {
         int total_pixels = mask_gray.rows * mask_gray.cols;
         int red_pixels = cv::countNonZero(mask_gray);
         double percentage_red = static_cast<double>(red_pixels) / total_pixels;
-
         
 
         if (percentage_red > .1){
@@ -335,13 +336,13 @@ void WallFollow::handle_pid(){
     // We have been in pid mode long enough and can now look to see if we should exit
     if (this->stay_in_pid_ct == 0){
         // Decide if we should leave "PID" mode and go to "SLOW_DOWN" mode
-        threshold = this->slow_threshold;
+        float threshold = this->slow_threshold;
         if (this->deep_wall_ahead){
             threshold *= this->deep_wall_scaling;
         }
 
         if (center_avg < threshold) {
-            ROS_INFO("(Mode Change) %s -> SLOW_DOWN", this->drive_mode.c_str());
+            ROS_INFO("(Mode Change) %s -> SLOW_DOWN (Deep Detected? %d)", this->drive_mode.c_str(), this->deep_wall_ahead);
             drive(this->brake_speed);
             steer(TURN_ANGLE_STRAIGHT);
             this->drive_mode = "SLOW_DOWN"; 
@@ -405,14 +406,14 @@ void WallFollow::handle_slow_down(){
         }
     }
 
-    threshold = this->turn_threshold;
+    float threshold = this->turn_threshold;
     if (this->deep_wall_ahead){
         threshold *= this->deep_wall_scaling;
     }
 
     if (center_avg < threshold) {
         this->drive_mode = "TURN";
-        ROS_INFO("(Mode Change) SLOW_DOWN -> TURN");
+        ROS_INFO("(Mode Change) %s -> SLOW_DOWN (Deep Detected? %d)", this->drive_mode.c_str(), this->deep_wall_ahead);
         this->just_turned = true;
         this->drive_speed = this->turn_speed;
         drive(this->drive_speed);
@@ -549,6 +550,9 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     signal(SIGINT, sigintHandler);
     WallFollow wall_follow(&nh);
-    ros::spin();
+    ros::AsyncSpinner spinner(3);
+    spinner.start();
+    ros::waitForShutdown();
+    // ros::spin();
     return 0;
 }
