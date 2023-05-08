@@ -405,7 +405,16 @@ void WallFollow::handle_slow_down(){
     static int d = std::floor(center_h * std::tan(this->alpha * M_PI / 360.0) / std::tan(FOV_H * M_PI / 360.0));
 
     cv::Mat center_wall = this->depth_array(cv::Range(200, center_v), cv::Range(center_h - d, center_h + d));
+    cv::Mat left_wall = this->depth_array(cv::Range(0, center_v), cv::Range(0, center_h - d));
+    cv::Mat right_wall = this->depth_array(cv::Range(0, center_v), cv::Range(center_h + d, depth_array.cols));
+
     float center_avg = cv::mean(center_wall)[0];
+    float left_avg = cv::mean(left_wall)[0];
+    float right_avg = cv::mean(right_wall)[0];
+
+    // To avoid inlets in walls, clip the right and left averages if they are too far away
+    right_avg = std::min(this->inlet_threshold, right_avg);
+    left_avg = std::min(this->inlet_threshold, left_avg);
 
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
 
@@ -451,7 +460,16 @@ void WallFollow::handle_slow_down(){
         drive(this->drive_speed);
         this->yaw_before_turn = this->yaw;
     }
-    return;
+
+    if(left_avg < this->force_turn_at){
+        ROS_INFO("[SLOW] WallFollow: FORCE TURN RIGHT");
+        steer(TURN_ANGLE_STRAIGHT + this->force_turn_strength);
+        return;
+    } else if(right_avg < this->force_turn_at) {
+        ROS_INFO("[SLOW] WallFollow: FORCE TURN LEFT");
+        steer(TURN_ANGLE_STRAIGHT - this->force_turn_strength);
+        return;
+    }
 }
 
 void WallFollow::handle_turn(){

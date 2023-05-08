@@ -58,7 +58,7 @@ turn_timer: 0.0
 # the duration for which the robot continues moving at the slower speed after taking the turn
 slow_timer: 0.0
 
-turn_yaw_threshold: 1.1
+turn_yaw_threshold: .9
 
 inlet_threshold: 2.0
 
@@ -72,10 +72,10 @@ visual_detection_of_deep_walls: true
 min_brown_match: .15
 
 # increase turn and slow thresholds by this much
-deep_wall_scaling: 1.7
+deep_wall_scaling: 2.6
 
 deep_alpha: 30
 
-force_turn_at: .5
+force_turn_at: .75
 
-force_turn_strength: 1000
+force_turn_strength: 400
