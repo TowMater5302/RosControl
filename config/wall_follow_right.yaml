@@ -2,32 +2,42 @@
 # original = -50, 0, -5
 pid: {
   kp: -65.0,
-  ki: -15.0,
-  kd: -7.0,
+  ki: -15,
+  kd: -7,
 }
+# pid: {
+#   kp: -50.0,
+#   ki: -15,
+#   kd: -10,
+# }
 # control type
 control_type: 'pid'
 
 # turn direction - 'left' or 'right' when the robot is approaching a turn
-turn_direction: 'left'
-turn_angle: 1200 # (0, 2000) 
+turn_direction: 'right'
+turn_angle: 1000 # (0, 2000) 
 
 # threshold in meteres when the robot starts turning
 turn_threshold: 2.2
+# turn_threshold: 0
 
 # alpha - the FOV in degree within which the robot will look for a wall
 alpha: 60
 
+center_wall_detect_d: 50
+
 # normal_speed - the speed with which robot will normally drive (6400 original)
 #(6400 for racing)
 #(6250 for stop detection)
-normal_speed: 6175
+normal_speed: 6325
+# normal_speed: 6400
 
 # turn_speed - the speed with which robot will drive while turning at corner
-turn_speed: 6125
+turn_speed: 6200
 
 # brake_speed - the speed we use during the slowdown mode
-brake_speed: 5000
+# brake_speed: 5500
+brake_speed: 6150
 
 # enable_stop_sign - whether we should look for stop signs to stop at
 enable_stop_sign: false
@@ -35,10 +45,12 @@ enable_stop_sign: false
 # the speed for which it goes immediately after the turn 
 #(6400 for racing)
 #(6250 for stop detection)
-turn_exit_speed: 6175
+turn_exit_speed: 6325
+# turn_exit_speed: 6400
 
 # slow_threshold -  threshold in meters when the robot starts slowing down
 slow_threshold: 2.8
+# slow_threshold: 0
 
 # the duration for which the robot takes the turn
 turn_timer: 0.0
@@ -46,7 +58,7 @@ turn_timer: 0.0
 # the duration for which the robot continues moving at the slower speed after taking the turn
 slow_timer: 0.0
 
-turn_yaw_threshold: 1
+turn_yaw_threshold: 1.1
 
 inlet_threshold: 2.0
 
@@ -63,3 +75,7 @@ min_brown_match: .15
 deep_wall_scaling: 1.7
 
 deep_alpha: 30
+
+force_turn_at: .5
+
+force_turn_strength: 1000

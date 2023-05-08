@@ -61,8 +61,11 @@ class WallFollow {
         int center_wall_detect_d;
         float force_turn_at;
         float force_turn_strength;
+        cv::Mat frame_gray;
+        float red_threshold;
 
-        int stay_in_pid_ct = 10;
+        int stay_in_pid_ct = 5;
+        int avoid_stop_sign = 0;
 
         cv_bridge::CvImagePtr cv_ptr; // depth image
         cv::Mat depth_array; // depth image converted to a cv::Mat
@@ -106,6 +109,9 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 
     nh->getParam("turn_threshold", this->turn_threshold);
     ROS_INFO("Set turn threshold: %f", this->turn_threshold);
+
+    nh->getParam("red_threshold", this->red_threshold);
+    ROS_INFO("Set red_threshold: %f", this->red_threshold);
 
     nh->getParam("slow_threshold", this->slow_threshold);
     ROS_INFO("Set slow threshold: %f", this->slow_threshold);
@@ -185,7 +191,7 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
     if (this->enable_stop_sign || this->enable_deep_wall_detection){
         this->sub3 = nh->subscribe("/camera/color/image_raw", 1, &WallFollow::colorCallback, this);
 
-        if (!this->stop_classifier.load("/home/odroid/Desktop/towmater_ws/src/RosControl/data/cascade.xml"))
+        if (!this->stop_classifier.load("/home/odroid/Desktop/towmater_ws/src/RosControl/data/cascade2.xml"))
         {
             ROS_ERROR("Error loading cascade classifier XML file.");
         }
@@ -194,10 +200,12 @@ WallFollow::WallFollow(ros::NodeHandle* nh) {
 }
 
 void WallFollow::colorCallback(const sensor_msgs::Image::ConstPtr& data){
-    // Convert the image to a cv::Mat
-    
+     
     try {
+        
         this->color_array = cv_bridge::toCvCopy(data, sensor_msgs::image_encodings::BGR8)->image;
+        cvtColor(this->color_array, this->frame_gray, cv::COLOR_BGR2GRAY);
+        
 
         if (this->enable_deep_wall_detection){
             cv::Scalar lower_brown(0, 80, 100); // BGR format
@@ -259,16 +267,17 @@ void WallFollow::depthCallback(const sensor_msgs::Image::ConstPtr& data) {
 }
 
 std::string WallFollow::stopSignDetect() {
+    // ROS_INFO("Starting stopsigndetect toremove");
     
     if (this->color_array.empty()){
+        // ROS_INFO("stopsigndetect empty color toremove");
         return "";
     }
 
-    cv::Mat frame_gray;
-    cvtColor(this->color_array, frame_gray, cv::COLOR_BGR2GRAY);
-
     std::vector<cv::Rect> stop_signs;
+    // ROS_INFO("Starting stopsigndetect b4ms toremove");
     this->stop_classifier.detectMultiScale( frame_gray, stop_signs );
+    // ROS_INFO("Starting stopsigndetect afms toremove");
 
     // Define the lower and upper bounds of the red color range
     cv::Scalar lower_red(0, 0, 100); // BGR format
@@ -277,8 +286,10 @@ std::string WallFollow::stopSignDetect() {
     cv::Scalar black_color(255, 255, 255);
 
     std::string new_drive_mode = "";
+    float max_percent = 0;
     
     for (cv::Rect r : stop_signs) {
+        // ROS_INFO("Starting stopsigndetect loop toremove");
         cv::Mat section = this->color_array(r);
 
         // Apply the color mask to the ROI
@@ -289,14 +300,19 @@ std::string WallFollow::stopSignDetect() {
 
         // Convert the masked image to grayscale
         cv::Mat mask_gray;
+        // ROS_INFO("Starting stopsigndetect b4cvc loop toremove");
         cv::cvtColor(detected_output, mask_gray, cv::COLOR_BGR2GRAY);
+        // ROS_INFO("Starting stopsigndetect afcvc loop toremove");
 
         int total_pixels = mask_gray.rows * mask_gray.cols;
         int red_pixels = cv::countNonZero(mask_gray);
         double percentage_red = static_cast<double>(red_pixels) / total_pixels;
+        if(percentage_red > max_percent){
+            max_percent = percentage_red;
+        }
         
-
-        if (percentage_red > .1){
+        // ROS_INFO("STOP SIGN BLOB SIZE %d, (%f)", r.width * r.height, percentage_red);
+        if (percentage_red > this->red_threshold){
             ROS_INFO("STOP SIGN BLOB SIZE %d", r.width * r.height);
             if (r.width * r.height > this->stop_sign_size_to_stop){
                 new_drive_mode = "STOP_CLOSE";
@@ -305,6 +321,7 @@ std::string WallFollow::stopSignDetect() {
             new_drive_mode = "STOP_FAR";
         }
     }
+    // ROS_INFO("(%f) Starting stopsigndetect func end toremove ", max_percent);
 
     return new_drive_mode;
 }
@@ -367,7 +384,7 @@ void WallFollow::handle_pid(){
         }
 
         // Decide if we should stop
-        if (this->enable_stop_sign){
+        if (this->enable_stop_sign && this->avoid_stop_sign == 0){
             std::string stop_detection = this->stopSignDetect();
             if (stop_detection == "STOP_FAR"){
                 drive(this->turn_speed);
@@ -376,12 +393,15 @@ void WallFollow::handle_pid(){
                 ROS_INFO("(Mode Change) %s -> STOP_CLOSE", this->drive_mode.c_str());
                 drive(6000);
                 this->drive_mode = "PID";
-                this->stay_in_pid_ct = 15;
+                this->avoid_stop_sign = 15;
                 ROS_INFO("Sleeping for %f", this->stop_sign_seconds_stopped * MICROSECOND);
                 usleep(this->stop_sign_seconds_stopped * MICROSECOND);
                 drive(this->drive_speed);
                 ROS_INFO("(Mode Change) STOP_CLOSE -> PID");
             }
+        }
+        else if(this->enable_stop_sign && this->avoid_stop_sign > 0){
+            this->avoid_stop_sign --;
         }
     }
     else{
@@ -410,17 +430,24 @@ void WallFollow::handle_slow_down(){
     ROS_INFO("[SLOW] Center wall: %f", center_avg);
 
     // Decide if we should stop
-    if (this->enable_stop_sign){
+    if (this->enable_stop_sign && this->avoid_stop_sign == 0){
         std::string stop_detection = this->stopSignDetect();
-        if (stop_detection == "STOP_CLOSE"){
+        if (stop_detection == "STOP_FAR"){
+            drive(this->turn_speed);
+            this->drive_mode = "STOP_FAR";
+        } else if (stop_detection == "STOP_CLOSE"){
             ROS_INFO("(Mode Change) %s -> STOP_CLOSE", this->drive_mode.c_str());
             drive(6000);
-            this->drive_mode = "SLOW_DOWN";
+            this->drive_mode = "SLOW";
+            this->avoid_stop_sign = 15;
             ROS_INFO("Sleeping for %f", this->stop_sign_seconds_stopped * MICROSECOND);
             usleep(this->stop_sign_seconds_stopped * MICROSECOND);
             drive(this->drive_speed);
-            ROS_INFO("(Mode Change) STOP_CLOSE -> SLOW_DOWN");
+            ROS_INFO("(Mode Change) STOP_CLOSE -> SLOW");
         }
+    }
+    else if(this->enable_stop_sign && this->avoid_stop_sign > 0){
+        this->avoid_stop_sign --;
     }
 
     float threshold = this->turn_threshold;
@@ -472,7 +499,7 @@ void WallFollow::handle_turn(){
         if (stop_detection == "STOP_CLOSE"){
             ROS_INFO("(Mode Change) %s -> STOP_CLOSE", this->drive_mode.c_str());
             drive(6000);
-            this->drive_mode = "SLOW_DOWN";
+            this->drive_mode = "TURN";
             ROS_INFO("Sleeping for %f", this->stop_sign_seconds_stopped * MICROSECOND);
             usleep(this->stop_sign_seconds_stopped * MICROSECOND);
             drive(this->drive_speed);
@@ -593,9 +620,6 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     signal(SIGINT, sigintHandler);
     WallFollow wall_follow(&nh);
-    ros::AsyncSpinner spinner(3);
-    spinner.start();
-    ros::waitForShutdown();
-    // ros::spin();
+    ros::spin();
     return 0;
 }

@@ -8,14 +8,10 @@
     <!-- Launch wall follow node and set parameters  -->
     <!-- <group ns="towmater"> -->
 
-    <!-- right -->
-    <!-- <rosparam file="$(find pololu_maestro_ros)/config/wall_follow_right.yaml"/> -->
-        
-    <!-- left -->
-    <rosparam file="$(find pololu_maestro_ros)/config/wall_follow_left.yaml"/>
+    <rosparam file="$(find pololu_maestro_ros)/config/stop_sign.yaml"/>
 
 
-    <node pkg="pololu_maestro_ros" name="wall_follow_node" type="wall_follow_node" output="screen"/>
+    <node pkg="pololu_maestro_ros" name="stop_wall_follow_node" type="stop_wall_follow_node" output="screen"/>
     <!-- </group> -->
 
 </launch>

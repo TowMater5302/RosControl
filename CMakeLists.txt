@@ -145,6 +145,7 @@ add_executable(set_servo_test src/set_servo_test.cpp)
 add_executable(go_forward src/go_forward.cpp)
 add_executable(do_jump src/do_jump.cpp)
 add_executable(wall_follow_node scripts/wall_follow.cpp)
+add_executable(stop_wall_follow_node scripts/wall_follow_stop.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -159,6 +160,8 @@ add_dependencies(set_servo_test ${PROJECT_NAME}_generate_messages_cpp)
 add_dependencies(go_forward ${PROJECT_NAME}_generate_messages_cpp)
 add_dependencies(do_jump ${PROJECT_NAME}_generate_messages_cpp)
 add_dependencies(wall_follow_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(stop_wall_follow_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(set_servo_server ${catkin_LIBRARIES})
@@ -166,6 +169,10 @@ target_link_libraries(set_servo_test ${catkin_LIBRARIES})
 target_link_libraries(go_forward ${catkin_LIBRARIES})
 target_link_libraries(do_jump ${catkin_LIBRARIES})
 target_link_libraries(wall_follow_node
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+target_link_libraries(stop_wall_follow_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
